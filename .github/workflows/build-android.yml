@@ -36,7 +36,7 @@ jobs:
           
           SDKM="$SDK/cmdline-tools/latest/bin/sdkmanager"
           
-          # 1. 【关键】强制卸载系统预装的 NDK 30，防止编译脚本自动抓取
+          # 1. 强制卸载系统预装的 NDK 30，防止编译脚本自动抓取
           echo "正在卸载冲突的 NDK 30..."
           yes | "$SDKM" --uninstall "ndk;30.0.16248370" 2>/dev/null || true
           
@@ -64,7 +64,7 @@ jobs:
       - name: 生成 Android 工程
         run: |
           pnpm tauri android init --ci
-          # 【关键】强制将 NDK 路径写入 Gradle 配置文件，防止 Gradle 自动寻找错误版本
+          # 强制将 NDK 路径写入 Gradle 配置文件，防止 Gradle 自动寻找错误版本
           echo "ndk.dir=$NDK_HOME" >> src-tauri/gen/android/local.properties
           echo "sdk.dir=$ANDROID_HOME" >> src-tauri/gen/android/local.properties
  
@@ -74,12 +74,7 @@ jobs:
           export ANDROID_NDK_HOME=$NDK_HOME
           export ANDROID_NDK_ROOT=$NDK_HOME
           
-          # 清理可能存在的 Gradle 缓存
-          cd src-tauri/gen/android
-          ./gradlew clean
-          cd ../../..
-          
-          # 执行编译
+          # 执行编译（由 Tauri 自动处理 Gradle 脚本注入）
           pnpm tauri android build --apk --debug --split-per-abi --target aarch64 armv7 x86_64
  
       - name: 收集产物
