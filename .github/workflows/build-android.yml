@@ -57,8 +57,7 @@ jobs:
         run: pnpm tauri android init --ci
  
       - name: 编译 Debug APK（按 ABI 分包）
-        run: pnpm tauri android build --apk --debug --split-per-abi \
-          --target aarch64 armv7 x86_64
+        run: pnpm tauri android build --apk --debug --split-per-abi --target aarch64 armv7 x86_64
  
       - name: 收集产物
         run: |
