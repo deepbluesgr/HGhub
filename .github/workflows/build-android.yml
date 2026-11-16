@@ -54,6 +54,13 @@ jobs:
  
       - name: 生成 Android 工程
         run: pnpm tauri android init --ci
+
+      - name: 验证 NDK 版本
+        run: |
+          echo "NDK_HOME=$NDK_HOME"
+          echo "ANDROID_NDK_HOME=$ANDROID_NDK_HOME"
+          cat $NDK_HOME/source.properties | grep Pkg.Revision
+          ls $NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/include/sys/cdefs.h
  
       - name: 编译 Debug APK（按 ABI 分包）
         run: pnpm tauri android build --apk --debug --split-per-abi --target aarch64 armv7 x86_64
