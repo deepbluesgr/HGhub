@@ -28,20 +28,28 @@ jobs:
           distribution: temurin
           java-version: "17"
  
-      # 关键：直接复用 runner 自带的 Android SDK。
-      # 官方注释说明不要使用 android-actions/setup-android，
-      # 它的 license 交互会把任务卡死。
-      - name: 准备 Android SDK / NDK
+      - name: 准备 Android SDK / NDK (强制清理并指定版本)
         run: |
           SDK="${ANDROID_HOME:-/usr/local/lib/android/sdk}"
           echo "ANDROID_HOME=$SDK" >> "$GITHUB_ENV"
           echo "ANDROID_SDK_ROOT=$SDK" >> "$GITHUB_ENV"
+          
           SDKM="$SDK/cmdline-tools/latest/bin/sdkmanager"
+          
+          # 1. 【关键】强制卸载系统预装的 NDK 30，防止编译脚本自动抓取
+          echo "正在卸载冲突的 NDK 30..."
+          yes | "$SDKM" --uninstall "ndk;30.0.16248370" 2>/dev/null || true
+          
+          # 2. 接受协议并安装指定的 NDK 28
+          echo "正在安装 NDK 28..."
           yes | "$SDKM" --licenses > /dev/null 2>&1 || true
           "$SDKM" --install "platform-tools" "platforms;android-36" "build-tools;36.0.0" "ndk;28.2.13676358"
+          
+          # 3. 设置所有相关的环境变量
           echo "NDK_HOME=$SDK/ndk/28.2.13676358" >> "$GITHUB_ENV"
           echo "ANDROID_NDK_HOME=$SDK/ndk/28.2.13676358" >> "$GITHUB_ENV"
- 
+          echo "ANDROID_NDK_ROOT=$SDK/ndk/28.2.13676358" >> "$GITHUB_ENV"
+
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: aarch64-linux-android,armv7-linux-androideabi,x86_64-linux-android
@@ -54,17 +62,25 @@ jobs:
         run: pnpm install --frozen-lockfile
  
       - name: 生成 Android 工程
-        run: pnpm tauri android init --ci
-
-      - name: 验证 NDK 版本
         run: |
-          echo "NDK_HOME=$NDK_HOME"
-          echo "ANDROID_NDK_HOME=$ANDROID_NDK_HOME"
-          cat $NDK_HOME/source.properties | grep Pkg.Revision
-          ls $NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/include/sys/cdefs.h
+          pnpm tauri android init --ci
+          # 【关键】强制将 NDK 路径写入 Gradle 配置文件，防止 Gradle 自动寻找错误版本
+          echo "ndk.dir=$NDK_HOME" >> src-tauri/gen/android/local.properties
+          echo "sdk.dir=$ANDROID_HOME" >> src-tauri/gen/android/local.properties
  
       - name: 编译 Debug APK（按 ABI 分包）
-        run: pnpm tauri android build --apk --debug --split-per-abi --target aarch64 armv7 x86_64
+        run: |
+          # 再次确保编译时的环境变量生效
+          export ANDROID_NDK_HOME=$NDK_HOME
+          export ANDROID_NDK_ROOT=$NDK_HOME
+          
+          # 清理可能存在的 Gradle 缓存
+          cd src-tauri/gen/android
+          ./gradlew clean
+          cd ../../..
+          
+          # 执行编译
+          pnpm tauri android build --apk --debug --split-per-abi --target aarch64 armv7 x86_64
  
       - name: 收集产物
         run: |
